@@ -9,6 +9,11 @@ import (
 
 type MsgPackSerializer struct{}
 
+// NewMsgpackSerializer creates a new MessagePack serializer
+func NewMsgpackSerializer() Serializer {
+	return &MsgPackSerializer{}
+}
+
 func (s *MsgPackSerializer) Serialize(v any) ([]byte, error) {
 	if v == nil {
 		return nil, errors.New("value is nil")

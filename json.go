@@ -6,7 +6,13 @@ import (
 	"io"
 )
 
+// jsonSerializer implements Serializer using JSON encoding
 type JSONSerializer struct{}
+
+// NewJSONSerializer creates a new JSON serializer
+func NewJSONSerializer() Serializer {
+	return &JSONSerializer{}
+}
 
 func (s *JSONSerializer) Serialize(v any) ([]byte, error) {
 	return json.Marshal(v)

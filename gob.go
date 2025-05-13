@@ -9,6 +9,11 @@ import (
 
 type GobSerializer struct{}
 
+// NewGobSerializer creates a new Gob serializer
+func NewGobSerializer() Serializer {
+	return &GobSerializer{}
+}
+
 func (s *GobSerializer) Serialize(v any) ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := gob.NewEncoder(&buf)
