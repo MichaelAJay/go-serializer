@@ -293,9 +293,9 @@ func TestRegistry(t *testing.T) {
 	registry := serializer.NewRegistry()
 
 	// Register serializers
-	registry.Register(serializer.JSON, &serializer.JSONSerializer{})
-	registry.Register(serializer.Binary, &serializer.GobSerializer{})
-	registry.Register(serializer.Msgpack, &serializer.MsgPackSerializer{})
+	registry.Register(serializer.JSON, serializer.NewJSONSerializer())
+	registry.Register(serializer.Binary, serializer.NewGobSerializer())
+	registry.Register(serializer.Msgpack, serializer.NewMsgpackSerializer())
 
 	// Test getting registered serializers
 	formats := map[string]serializer.Format{

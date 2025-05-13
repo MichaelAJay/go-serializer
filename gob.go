@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"io"
+	"reflect"
 )
 
 type GobSerializer struct{}
@@ -48,4 +49,36 @@ func (s *GobSerializer) DeserializeFrom(r io.Reader, v any) error {
 
 func (s *GobSerializer) ContentType() string {
 	return "application/octet-stream"
+}
+
+func (s *GobSerializer) GetType(data []byte) (Type, error) {
+	if data == nil {
+		return TypeNil, errors.New("data is nil")
+	}
+
+	// For gob, we need to decode into an interface{} first
+	var v any
+	if err := s.Deserialize(data, &v); err != nil {
+		return TypeNil, err
+	}
+
+	// Determine the type
+	switch reflect.TypeOf(v).Kind() {
+	case reflect.String:
+		return TypeString, nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return TypeInt, nil
+	case reflect.Float32, reflect.Float64:
+		return TypeFloat, nil
+	case reflect.Bool:
+		return TypeBool, nil
+	case reflect.Slice:
+		return TypeSlice, nil
+	case reflect.Map:
+		return TypeMap, nil
+	case reflect.Struct:
+		return TypeStruct, nil
+	default:
+		return TypeNil, nil
+	}
 }

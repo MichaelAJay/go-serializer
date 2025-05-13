@@ -12,12 +12,12 @@ func main() {
 	registry := serializer.NewRegistry()
 
 	// Register all available serializers
-	registry.Register(serializer.JSON, &serializer.JSONSerializer{})
-	registry.Register(serializer.Binary, &serializer.GobSerializer{})
-	registry.Register(serializer.Msgpack, &serializer.MsgPackSerializer{})
+	registry.Register(serializer.JSON, serializer.NewJSONSerializer())
+	registry.Register(serializer.Binary, serializer.NewGobSerializer())
+	registry.Register(serializer.Msgpack, serializer.NewMsgpackSerializer())
 
 	// Data to serialize
-	data := map[string]interface{}{
+	data := map[string]any{
 		"name":    "Alice",
 		"age":     25,
 		"active":  true,
@@ -47,8 +47,15 @@ func main() {
 			continue
 		}
 
+		// Get type of serialized data
+		valueType, err := ser.GetType(bytes)
+		if err != nil {
+			log.Printf("Failed to get type with %s: %v", format, err)
+			continue
+		}
+
 		// Deserialize
-		var result map[string]interface{}
+		var result map[string]any
 		err = ser.Deserialize(bytes, &result)
 		if err != nil {
 			log.Printf("Failed to deserialize with %s: %v", format, err)
@@ -57,6 +64,7 @@ func main() {
 
 		fmt.Printf("\nFormat: %s\n", format)
 		fmt.Printf("Content-Type: %s\n", ser.ContentType())
+		fmt.Printf("Type: %s\n", valueType)
 		fmt.Printf("Serialized size: %d bytes\n", len(bytes))
 		fmt.Printf("Deserialized data: %+v\n", result)
 	}

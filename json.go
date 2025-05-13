@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"reflect"
 )
 
 // jsonSerializer implements Serializer using JSON encoding
@@ -41,4 +42,38 @@ func (s *JSONSerializer) DeserializeFrom(r io.Reader, v any) error {
 
 func (s *JSONSerializer) ContentType() string {
 	return "application/json"
+}
+
+func (s *JSONSerializer) GetType(data []byte) (Type, error) {
+	if data == nil {
+		return TypeNil, errors.New("data is nil")
+	}
+
+	// For JSON, we can use json.Unmarshal to determine the type
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return TypeNil, err
+	}
+
+	// Determine the type
+	switch v.(type) {
+	case string:
+		return TypeString, nil
+	case float64: // JSON numbers are always float64
+		return TypeInt, nil
+	case bool:
+		return TypeBool, nil
+	case []any:
+		return TypeSlice, nil
+	case map[string]any:
+		return TypeMap, nil
+	case nil:
+		return TypeNil, nil
+	default:
+		// For structs, we need to check the type
+		if reflect.TypeOf(v).Kind() == reflect.Struct {
+			return TypeStruct, nil
+		}
+		return TypeNil, nil
+	}
 }
