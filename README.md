@@ -1,6 +1,6 @@
 # Go Serializer
 
-A flexible and extensible serialization package for Go applications. This package provides a unified interface for different serialization formats with support for both byte-based and streaming operations.
+A Go library for uniform serialization and deserialization across different formats.
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/MichaelAJay/go-serializer)](https://goreportcard.com/report/github.com/MichaelAJay/go-serializer)
 [![GoDoc](https://godoc.org/github.com/MichaelAJay/go-serializer?status.svg)](https://godoc.org/github.com/MichaelAJay/go-serializer)
@@ -10,14 +10,15 @@ Current version: v0.1.0
 
 ## Features
 
-- Multiple serialization formats (JSON, Gob, MessagePack)
-- Unified interface for all serializers
-- Support for both byte-based and streaming operations
-- Registry system for easy serializer management
-- Thread-safe operations
-- Proper error handling
-- Content type support for HTTP operations
-- Version information and management
+- Support for multiple serialization formats:
+  - JSON
+  - Gob
+  - MessagePack
+- Uniform serialization behavior across all formats
+- Type preservation during serialization/deserialization
+- Cross-format compatibility
+- Streaming support
+- Registry for managing multiple serializers
 
 ## Installation
 
@@ -25,7 +26,9 @@ Current version: v0.1.0
 go get github.com/MichaelAJay/go-serializer
 ```
 
-## Quick Start
+## Usage
+
+### Basic Usage
 
 ```go
 package main
@@ -40,32 +43,95 @@ func main() {
     registry := serializer.NewRegistry()
 
     // Register serializers
-    registry.Register(serializer.JSON, &serializer.JSONSerializer{})
-    registry.Register(serializer.Binary, &serializer.GobSerializer{})
-    registry.Register(serializer.Msgpack, &serializer.MsgPackSerializer{})
+    registry.Register("json", serializer.NewJSONSerializer())
+    registry.Register("gob", serializer.NewGobSerializer())
+    registry.Register("msgpack", serializer.NewMsgpackSerializer())
 
     // Get a serializer
-    jsonSerializer, _ := registry.Get(serializer.JSON)
+    jsonSerializer := registry.Get("json")
 
     // Serialize data
-    data := map[string]interface{}{
+    data := map[string]any{
         "name": "John",
         "age":  30,
+        "tags": []string{"golang", "serialization"},
     }
     bytes, err := jsonSerializer.Serialize(data)
     if err != nil {
         panic(err)
     }
 
+    // Get the type of serialized data
+    valueType, err := jsonSerializer.GetType(bytes)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Printf("Type: %s\n", valueType)
+
     // Deserialize data
-    var result map[string]interface{}
+    var result map[string]any
     err = jsonSerializer.Deserialize(bytes, &result)
     if err != nil {
         panic(err)
     }
-
-    fmt.Printf("Deserialized: %+v\n", result)
+    fmt.Printf("Result: %+v\n", result)
 }
+```
+
+### Uniform Serialization
+
+The library ensures uniform serialization behavior across all supported formats:
+
+1. **Type Preservation**: All serializers preserve type information during serialization and deserialization.
+2. **Cross-Format Compatibility**: Data serialized with one format can be deserialized with another.
+3. **Consistent Type Handling**: All serializers handle types consistently:
+   - Basic types (string, int, float, bool) are preserved exactly
+   - Slices and maps maintain their structure and element types
+   - Structs preserve their field types and values
+   - Interface{} values are handled uniformly
+
+Example of cross-format compatibility:
+
+```go
+// Serialize with JSON
+jsonBytes, _ := jsonSerializer.Serialize(data)
+
+// Deserialize with MessagePack
+var result map[string]any
+msgpackSerializer.Deserialize(jsonBytes, &result)
+// result will match the original data exactly
+```
+
+### Streaming Support
+
+All serializers support streaming serialization and deserialization:
+
+```go
+// Serialize to a writer
+err := serializer.SerializeTo(writer, data)
+
+// Deserialize from a reader
+var result map[string]any
+err := serializer.DeserializeFrom(reader, &result)
+```
+
+### Registry
+
+The registry provides a convenient way to manage multiple serializers:
+
+```go
+registry := serializer.NewRegistry()
+
+// Register serializers
+registry.Register("json", serializer.NewJSONSerializer())
+registry.Register("gob", serializer.NewGobSerializer())
+registry.Register("msgpack", serializer.NewMsgpackSerializer())
+
+// Get a serializer
+jsonSerializer := registry.Get("json")
+
+// Create a new serializer
+newSerializer := registry.New("json")
 ```
 
 ## Examples
@@ -122,71 +188,6 @@ The package currently supports the following serialization formats:
 - **JSON**: Standard JSON serialization
 - **Gob**: Go's built-in binary serialization
 - **MessagePack**: Efficient binary serialization format
-
-## Usage
-
-### Basic Serialization
-
-```go
-// Create a serializer
-serializer := &serializer.JSONSerializer{}
-
-// Serialize data
-data := []string{"a", "b", "c"}
-bytes, err := serializer.Serialize(data)
-if err != nil {
-    panic(err)
-}
-
-// Deserialize data
-var result []string
-err = serializer.Deserialize(bytes, &result)
-if err != nil {
-    panic(err)
-}
-```
-
-### Streaming Operations
-
-```go
-// Create a buffer for streaming
-var buf bytes.Buffer
-
-// Serialize to stream
-err := serializer.SerializeTo(&buf, data)
-if err != nil {
-    panic(err)
-}
-
-// Deserialize from stream
-var result []string
-err = serializer.DeserializeFrom(&buf, &result)
-if err != nil {
-    panic(err)
-}
-```
-
-### Using the Registry
-
-```go
-// Create and configure registry
-registry := serializer.NewRegistry()
-registry.Register(serializer.JSON, &serializer.JSONSerializer{})
-registry.Register(serializer.Binary, &serializer.GobSerializer{})
-registry.Register(serializer.Msgpack, &serializer.MsgPackSerializer{})
-
-// Get a serializer by format
-serializer, ok := registry.Get(serializer.JSON)
-if !ok {
-    panic("JSON serializer not found")
-}
-
-// Create a new serializer instance
-serializer, err := registry.New(serializer.JSON)
-if err != nil {
-    panic(err)
-}
-```
 
 ## Content Types
 

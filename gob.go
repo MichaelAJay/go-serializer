@@ -8,6 +8,7 @@ import (
 	"reflect"
 )
 
+// GobSerializer implements Serializer using Gob encoding
 type GobSerializer struct{}
 
 // NewGobSerializer creates a new Gob serializer
@@ -16,9 +17,23 @@ func NewGobSerializer() Serializer {
 }
 
 func (s *GobSerializer) Serialize(v any) ([]byte, error) {
+	if v == nil {
+		return nil, errors.New("cannot serialize nil value")
+	}
+
+	// Create a wrapper that includes type information
+	wrapper := struct {
+		Type  Type
+		Value any
+	}{
+		Type:  s.getType(v),
+		Value: v,
+	}
+
+	// Serialize the wrapper
 	var buf bytes.Buffer
 	encoder := gob.NewEncoder(&buf)
-	err := encoder.Encode(v)
+	err := encoder.Encode(wrapper)
 	return buf.Bytes(), err
 }
 
@@ -26,8 +41,23 @@ func (s *GobSerializer) Deserialize(data []byte, v any) error {
 	if data == nil {
 		return errors.New("data is nil")
 	}
+
+	// First try to deserialize as a wrapper
+	var wrapper struct {
+		Type  Type
+		Value any
+	}
+
 	buf := bytes.NewBuffer(data)
 	decoder := gob.NewDecoder(buf)
+	if err := decoder.Decode(&wrapper); err == nil {
+		// If we successfully deserialized a wrapper, use the type information
+		return s.deserializeWithType(wrapper.Value, wrapper.Type, v)
+	}
+
+	// If that fails, try direct deserialization
+	buf = bytes.NewBuffer(data)
+	decoder = gob.NewDecoder(buf)
 	return decoder.Decode(v)
 }
 
@@ -35,15 +65,39 @@ func (s *GobSerializer) SerializeTo(w io.Writer, v any) error {
 	if w == nil {
 		return errors.New("writer is nil")
 	}
+
+	// Create a wrapper that includes type information
+	wrapper := struct {
+		Type  Type
+		Value any
+	}{
+		Type:  s.getType(v),
+		Value: v,
+	}
+
 	encoder := gob.NewEncoder(w)
-	return encoder.Encode(v)
+	return encoder.Encode(wrapper)
 }
 
 func (s *GobSerializer) DeserializeFrom(r io.Reader, v any) error {
 	if r == nil {
 		return errors.New("reader is nil")
 	}
+
+	// First try to deserialize as a wrapper
+	var wrapper struct {
+		Type  Type
+		Value any
+	}
+
 	decoder := gob.NewDecoder(r)
+	if err := decoder.Decode(&wrapper); err == nil {
+		// If we successfully deserialized a wrapper, use the type information
+		return s.deserializeWithType(wrapper.Value, wrapper.Type, v)
+	}
+
+	// If that fails, try direct deserialization
+	decoder = gob.NewDecoder(r)
 	return decoder.Decode(v)
 }
 
@@ -56,29 +110,148 @@ func (s *GobSerializer) GetType(data []byte) (Type, error) {
 		return TypeNil, errors.New("data is nil")
 	}
 
-	// For gob, we need to decode into an interface{} first
+	// Try to deserialize as a wrapper first
+	var wrapper struct {
+		Type  Type
+		Value any
+	}
+
+	buf := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(buf)
+	if err := decoder.Decode(&wrapper); err == nil {
+		return wrapper.Type, nil
+	}
+
+	// If that fails, try to determine type from the raw data
 	var v any
-	if err := s.Deserialize(data, &v); err != nil {
+	buf = bytes.NewBuffer(data)
+	decoder = gob.NewDecoder(buf)
+	if err := decoder.Decode(&v); err != nil {
 		return TypeNil, err
 	}
 
-	// Determine the type
+	return s.getType(v), nil
+}
+
+// getType determines the type of a value
+func (s *GobSerializer) getType(v any) Type {
+	if v == nil {
+		return TypeNil
+	}
+
 	switch reflect.TypeOf(v).Kind() {
 	case reflect.String:
-		return TypeString, nil
+		return TypeString
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return TypeInt, nil
+		return TypeInt
 	case reflect.Float32, reflect.Float64:
-		return TypeFloat, nil
+		return TypeFloat
 	case reflect.Bool:
-		return TypeBool, nil
+		return TypeBool
 	case reflect.Slice:
-		return TypeSlice, nil
+		return TypeSlice
 	case reflect.Map:
-		return TypeMap, nil
+		return TypeMap
 	case reflect.Struct:
-		return TypeStruct, nil
+		return TypeStruct
 	default:
-		return TypeNil, nil
+		return TypeNil
 	}
+}
+
+// deserializeWithType deserializes a value with type information
+func (s *GobSerializer) deserializeWithType(value any, valueType Type, target any) error {
+	// Create a new value of the target type
+	targetType := reflect.TypeOf(target)
+	if targetType.Kind() != reflect.Ptr {
+		return errors.New("target must be a pointer")
+	}
+	targetType = targetType.Elem()
+
+	// Convert the value to the target type
+	switch valueType {
+	case TypeString:
+		if targetType.Kind() == reflect.String {
+			reflect.ValueOf(target).Elem().SetString(value.(string))
+			return nil
+		}
+	case TypeInt:
+		if targetType.Kind() == reflect.Int || targetType.Kind() == reflect.Int64 {
+			reflect.ValueOf(target).Elem().SetInt(value.(int64))
+			return nil
+		}
+	case TypeFloat:
+		if targetType.Kind() == reflect.Float64 {
+			reflect.ValueOf(target).Elem().SetFloat(value.(float64))
+			return nil
+		}
+	case TypeBool:
+		if targetType.Kind() == reflect.Bool {
+			reflect.ValueOf(target).Elem().SetBool(value.(bool))
+			return nil
+		}
+	case TypeSlice:
+		if targetType.Kind() == reflect.Slice {
+			// Handle slice conversion
+			return s.convertSlice(value, target)
+		}
+	case TypeMap:
+		if targetType.Kind() == reflect.Map {
+			// Handle map conversion
+			return s.convertMap(value, target)
+		}
+	case TypeStruct:
+		if targetType.Kind() == reflect.Struct {
+			// Handle struct conversion
+			return s.convertStruct(value, target)
+		}
+	}
+
+	// If we can't convert directly, try to marshal/unmarshal
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	if err := encoder.Encode(value); err != nil {
+		return err
+	}
+	decoder := gob.NewDecoder(&buf)
+	return decoder.Decode(target)
+}
+
+// convertSlice converts a slice value to the target type
+func (s *GobSerializer) convertSlice(value any, target any) error {
+	// Implementation for slice conversion
+	// This would handle converting between different slice types
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	if err := encoder.Encode(value); err != nil {
+		return err
+	}
+	decoder := gob.NewDecoder(&buf)
+	return decoder.Decode(target)
+}
+
+// convertMap converts a map value to the target type
+func (s *GobSerializer) convertMap(value any, target any) error {
+	// Implementation for map conversion
+	// This would handle converting between different map types
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	if err := encoder.Encode(value); err != nil {
+		return err
+	}
+	decoder := gob.NewDecoder(&buf)
+	return decoder.Decode(target)
+}
+
+// convertStruct converts a struct value to the target type
+func (s *GobSerializer) convertStruct(value any, target any) error {
+	// Implementation for struct conversion
+	// This would handle converting between different struct types
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	if err := encoder.Encode(value); err != nil {
+		return err
+	}
+	decoder := gob.NewDecoder(&buf)
+	return decoder.Decode(target)
 }

@@ -2,11 +2,26 @@ package serializer_test
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/MichaelAJay/go-serializer"
+)
+
+// Type represents the type of a serialized value
+type Type string
+
+const (
+	TypeNil    Type = "nil"
+	TypeString Type = "string"
+	TypeInt    Type = "int"
+	TypeFloat  Type = "float"
+	TypeBool   Type = "bool"
+	TypeSlice  Type = "slice"
+	TypeMap    Type = "map"
+	TypeStruct Type = "struct"
 )
 
 // testStruct is a struct with various field types for testing
@@ -501,4 +516,192 @@ func deref(v any) any {
 		return val.Elem().Interface()
 	}
 	return v
+}
+
+// TestUniformSerialization verifies that all serializers produce consistent results
+func TestUniformSerialization(t *testing.T) {
+	// Test data with various types
+	testData := testStruct{
+		String:    "test",
+		Int:       42,
+		Float:     3.14,
+		Bool:      true,
+		Time:      time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Slice:     []string{"a", "b", "c"},
+		Map:       map[string]int{"x": 1, "y": 2},
+		Interface: "interface value",
+	}
+
+	// Test each serializer
+	for _, s := range testSerializers {
+		t.Run(s.name, func(t *testing.T) {
+			// Serialize the data
+			bytes, err := s.serializer.Serialize(testData)
+			if err != nil {
+				t.Fatalf("Serialize failed: %v", err)
+			}
+
+			// Get the type information
+			valueType, err := s.serializer.GetType(bytes)
+			if err != nil {
+				t.Fatalf("GetType failed: %v", err)
+			}
+			if valueType != serializer.TypeStruct {
+				t.Errorf("Expected type %s, got %s", serializer.TypeStruct, valueType)
+			}
+
+			// Deserialize into a new struct
+			var result testStruct
+			err = s.serializer.Deserialize(bytes, &result)
+			if err != nil {
+				t.Fatalf("Deserialize failed: %v", err)
+			}
+
+			// Verify the result matches the input
+			if result.String != testData.String {
+				t.Errorf("String mismatch: expected %q, got %q", testData.String, result.String)
+			}
+			if result.Int != testData.Int {
+				t.Errorf("Int mismatch: expected %d, got %d", testData.Int, result.Int)
+			}
+			if result.Float != testData.Float {
+				t.Errorf("Float mismatch: expected %f, got %f", testData.Float, result.Float)
+			}
+			if result.Bool != testData.Bool {
+				t.Errorf("Bool mismatch: expected %v, got %v", testData.Bool, result.Bool)
+			}
+			if !result.Time.Equal(testData.Time) {
+				t.Errorf("Time mismatch: expected %v, got %v", testData.Time, result.Time)
+			}
+			if !reflect.DeepEqual(result.Slice, testData.Slice) {
+				t.Errorf("Slice mismatch: expected %v, got %v", testData.Slice, result.Slice)
+			}
+			if !reflect.DeepEqual(result.Map, testData.Map) {
+				t.Errorf("Map mismatch: expected %v, got %v", testData.Map, result.Map)
+			}
+			if result.Interface != testData.Interface {
+				t.Errorf("Interface mismatch: expected %v, got %v", testData.Interface, result.Interface)
+			}
+		})
+	}
+}
+
+// TestCrossSerializerCompatibility verifies that data serialized with one serializer
+// can be deserialized with another
+func TestCrossSerializerCompatibility(t *testing.T) {
+	// Test data
+	testData := map[string]any{
+		"string": "test",
+		"int":    42,
+		"float":  3.14,
+		"bool":   true,
+		"slice":  []string{"a", "b", "c"},
+		"map":    map[string]int{"x": 1, "y": 2},
+	}
+
+	// Test each serializer combination
+	for _, s1 := range testSerializers {
+		for _, s2 := range testSerializers {
+			t.Run(fmt.Sprintf("%s_to_%s", s1.name, s2.name), func(t *testing.T) {
+				// Serialize with first serializer
+				bytes, err := s1.serializer.Serialize(testData)
+				if err != nil {
+					t.Fatalf("Serialize with %s failed: %v", s1.name, err)
+				}
+
+				// Deserialize with second serializer
+				var result map[string]any
+				err = s2.serializer.Deserialize(bytes, &result)
+				if err != nil {
+					t.Fatalf("Deserialize with %s failed: %v", s2.name, err)
+				}
+
+				// Verify the result matches the input
+				if !reflect.DeepEqual(result, testData) {
+					t.Errorf("Data mismatch: expected %v, got %v", testData, result)
+				}
+			})
+		}
+	}
+}
+
+// TestTypePreservation verifies that type information is preserved during serialization
+func TestTypePreservation(t *testing.T) {
+	// Test cases with different types
+	testCases := []struct {
+		name  string
+		value any
+		typ   serializer.Type
+	}{
+		{"string", "test", serializer.TypeString},
+		{"int", 42, serializer.TypeInt},
+		{"float", 3.14, serializer.TypeFloat},
+		{"bool", true, serializer.TypeBool},
+		{"slice", []string{"a", "b"}, serializer.TypeSlice},
+		{"map", map[string]int{"x": 1}, serializer.TypeMap},
+		{"struct", struct{ X int }{42}, serializer.TypeStruct},
+	}
+
+	// Test each serializer
+	for _, s := range testSerializers {
+		t.Run(s.name, func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					// Serialize the value
+					bytes, err := s.serializer.Serialize(tc.value)
+					if err != nil {
+						t.Fatalf("Serialize failed: %v", err)
+					}
+
+					// Get the type information
+					valueType, err := s.serializer.GetType(bytes)
+					if err != nil {
+						t.Fatalf("GetType failed: %v", err)
+					}
+					if valueType != tc.typ {
+						t.Errorf("Expected type %s, got %s", tc.typ, valueType)
+					}
+
+					// Deserialize and verify type
+					var result any
+					err = s.serializer.Deserialize(bytes, &result)
+					if err != nil {
+						t.Fatalf("Deserialize failed: %v", err)
+					}
+
+					// Verify the type of the result
+					resultType := getType(result)
+					if resultType != tc.typ {
+						t.Errorf("Result type mismatch: expected %s, got %s", tc.typ, resultType)
+					}
+				})
+			}
+		})
+	}
+}
+
+// getType is a helper function to determine the type of a value
+func getType(v any) serializer.Type {
+	if v == nil {
+		return serializer.TypeNil
+	}
+
+	switch reflect.TypeOf(v).Kind() {
+	case reflect.String:
+		return serializer.TypeString
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return serializer.TypeInt
+	case reflect.Float32, reflect.Float64:
+		return serializer.TypeFloat
+	case reflect.Bool:
+		return serializer.TypeBool
+	case reflect.Slice:
+		return serializer.TypeSlice
+	case reflect.Map:
+		return serializer.TypeMap
+	case reflect.Struct:
+		return serializer.TypeStruct
+	default:
+		return serializer.TypeNil
+	}
 }
