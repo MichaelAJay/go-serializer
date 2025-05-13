@@ -104,9 +104,9 @@ var testSerializers = []struct {
 	name       string
 	serializer serializer.Serializer
 }{
-	{"JSON", &serializer.JSONSerializer{}},
-	{"Gob", &serializer.GobSerializer{}},
-	{"MsgPack", &serializer.MsgPackSerializer{}},
+	{"JSON", serializer.NewJSONSerializer()},
+	{"Gob", serializer.NewGobSerializer()},
+	{"MsgPack", serializer.NewMsgpackSerializer()},
 }
 
 func TestSerialization(t *testing.T) {
