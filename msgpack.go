@@ -10,6 +10,9 @@ import (
 type MsgPackSerializer struct{}
 
 func (s *MsgPackSerializer) Serialize(v any) ([]byte, error) {
+	if v == nil {
+		return nil, errors.New("value is nil")
+	}
 	return msgpack.Marshal(v)
 }
 

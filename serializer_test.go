@@ -239,23 +239,33 @@ func TestErrorCases(t *testing.T) {
 				}
 			}
 
-			// Test invalid data
+			// Test nil data
 			var v testStruct
-			err := s.serializer.Deserialize([]byte("invalid data"), &v)
+			err := s.serializer.Deserialize(nil, &v)
+			if err == nil {
+				t.Error("Expected error for nil data")
+			}
+
+			// Test invalid data
+			err = s.serializer.Deserialize([]byte("invalid data"), &v)
 			if err == nil {
 				t.Error("Expected error for invalid data")
 			}
 
-			// Test nil reader/writer (skip for JSON, which panics)
-			if s.name != "JSON" {
-				err = s.serializer.DeserializeFrom(nil, &v)
-				if err == nil {
-					t.Error("Expected error for nil reader")
-				}
-				err = s.serializer.SerializeTo(nil, &v)
-				if err == nil {
-					t.Error("Expected error for nil writer")
-				}
+			// Test nil reader
+			err = s.serializer.DeserializeFrom(nil, &v)
+			if err == nil {
+				t.Error("Expected error for nil reader")
+			} else if err.Error() != "reader is nil" {
+				t.Errorf("Expected 'reader is nil' error, got: %v", err)
+			}
+
+			// Test nil writer
+			err = s.serializer.SerializeTo(nil, &v)
+			if err == nil {
+				t.Error("Expected error for nil writer")
+			} else if err.Error() != "writer is nil" {
+				t.Errorf("Expected 'writer is nil' error, got: %v", err)
 			}
 		})
 	}
@@ -288,14 +298,20 @@ func TestRegistry(t *testing.T) {
 	registry.Register(serializer.Msgpack, &serializer.MsgPackSerializer{})
 
 	// Test getting registered serializers
-	for _, s := range testSerializers {
-		t.Run(s.name, func(t *testing.T) {
-			ser, ok := registry.Get(serializer.Format(s.name))
+	formats := map[string]serializer.Format{
+		"JSON":    serializer.JSON,
+		"Gob":     serializer.Binary,
+		"MsgPack": serializer.Msgpack,
+	}
+
+	for name, format := range formats {
+		t.Run(name, func(t *testing.T) {
+			ser, ok := registry.Get(format)
 			if !ok {
-				t.Errorf("Serializer %s not found in registry", s.name)
+				t.Errorf("Serializer %s not found in registry", name)
 			}
 			if ser == nil {
-				t.Errorf("Got nil serializer for %s", s.name)
+				t.Errorf("Got nil serializer for %s", name)
 			}
 		})
 	}
@@ -307,14 +323,14 @@ func TestRegistry(t *testing.T) {
 	}
 
 	// Test New factory method
-	for _, s := range testSerializers {
-		t.Run(s.name, func(t *testing.T) {
-			ser, err := registry.New(serializer.Format(s.name))
+	for name, format := range formats {
+		t.Run(name, func(t *testing.T) {
+			ser, err := registry.New(format)
 			if err != nil {
-				t.Errorf("Failed to create serializer %s: %v", s.name, err)
+				t.Errorf("Failed to create serializer %s: %v", name, err)
 			}
 			if ser == nil {
-				t.Errorf("Got nil serializer for %s", s.name)
+				t.Errorf("Got nil serializer for %s", name)
 			}
 		})
 	}
