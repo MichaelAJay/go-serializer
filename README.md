@@ -1,6 +1,6 @@
 # Go Serializer
 
-A Go library for uniform serialization and deserialization across different formats.
+A Go library for consistent serialization and deserialization across different formats.
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/MichaelAJay/go-serializer)](https://goreportcard.com/report/github.com/MichaelAJay/go-serializer)
 [![GoDoc](https://godoc.org/github.com/MichaelAJay/go-serializer?status.svg)](https://godoc.org/github.com/MichaelAJay/go-serializer)
@@ -14,9 +14,8 @@ Current version: v0.1.0
   - JSON
   - Gob
   - MessagePack
-- Uniform serialization behavior across all formats
-- Type preservation during serialization/deserialization
-- Cross-format compatibility
+- Consistent API across all formats
+- Format-specific type handling
 - Streaming support
 - Registry for managing multiple serializers
 
@@ -43,12 +42,12 @@ func main() {
     registry := serializer.NewRegistry()
 
     // Register serializers
-    registry.Register("json", serializer.NewJSONSerializer())
-    registry.Register("gob", serializer.NewGobSerializer())
-    registry.Register("msgpack", serializer.NewMsgpackSerializer())
+    registry.Register(serializer.JSON, serializer.NewJSONSerializer())
+    registry.Register(serializer.Binary, serializer.NewGobSerializer())
+    registry.Register(serializer.Msgpack, serializer.NewMsgpackSerializer())
 
     // Get a serializer
-    jsonSerializer := registry.Get("json")
+    jsonSerializer, _ := registry.Get(serializer.JSON)
 
     // Serialize data
     data := map[string]any{
@@ -60,13 +59,8 @@ func main() {
     if err != nil {
         panic(err)
     }
-
-    // Get the type of serialized data
-    valueType, err := jsonSerializer.GetType(bytes)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Type: %s\n", valueType)
+    
+    fmt.Printf("Serialized JSON: %s\n", string(bytes))
 
     // Deserialize data
     var result map[string]any
@@ -78,29 +72,33 @@ func main() {
 }
 ```
 
-### Uniform Serialization
+### Format Differences
 
-The library ensures uniform serialization behavior across all supported formats:
+Each serialization format has its own specific behaviors:
 
-1. **Type Preservation**: All serializers preserve type information during serialization and deserialization.
-2. **Cross-Format Compatibility**: Data serialized with one format can be deserialized with another.
-3. **Consistent Type Handling**: All serializers handle types consistently:
-   - Basic types (string, int, float, bool) are preserved exactly
-   - Slices and maps maintain their structure and element types
-   - Structs preserve their field types and values
-   - Interface{} values are handled uniformly
+1. **JSON**:
+   - Human-readable text format
+   - All numbers are deserialized as `float64`
+   - Time values are serialized as strings
+   - Content-Type: `application/json`
 
-Example of cross-format compatibility:
+2. **MessagePack**:
+   - Compact binary format
+   - Preserves numeric types (int, float)
+   - Better performance for large datasets
+   - Content-Type: `application/x-msgpack`
 
-```go
-// Serialize with JSON
-jsonBytes, _ := jsonSerializer.Serialize(data)
-
-// Deserialize with MessagePack
-var result map[string]any
-msgpackSerializer.Deserialize(jsonBytes, &result)
-// result will match the original data exactly
-```
+3. **Gob**:
+   - Go-specific binary format
+   - Best for Go-to-Go communication
+   - Preserves Go types accurately
+   - **Requires explicit type registration** for interface{} values:
+     ```go
+     // Register types with gob before serialization
+     gob.Register(time.Time{})
+     gob.Register(map[string]interface{}{})
+     ```
+   - Content-Type: `application/x-gob`
 
 ### Streaming Support
 
@@ -123,15 +121,15 @@ The registry provides a convenient way to manage multiple serializers:
 registry := serializer.NewRegistry()
 
 // Register serializers
-registry.Register("json", serializer.NewJSONSerializer())
-registry.Register("gob", serializer.NewGobSerializer())
-registry.Register("msgpack", serializer.NewMsgpackSerializer())
+registry.Register(serializer.JSON, serializer.NewJSONSerializer())
+registry.Register(serializer.Binary, serializer.NewGobSerializer())
+registry.Register(serializer.Msgpack, serializer.NewMsgpackSerializer())
 
 // Get a serializer
-jsonSerializer := registry.Get("json")
+jsonSerializer, ok := registry.Get(serializer.JSON)
 
-// Create a new serializer
-newSerializer := registry.New("json")
+// Create a new serializer instance
+newSerializer, err := registry.New(serializer.JSON)
 ```
 
 ## Examples
@@ -140,17 +138,17 @@ The package includes several examples demonstrating different use cases:
 
 1. **Basic Usage** (`examples/basic/main.go`):
    - Simple serialization of a struct
-   - JSON serialization and deserialization
-   - Error handling
+   - JSON and MessagePack serialization
+   - Type handling differences
 
 2. **Registry Usage** (`examples/registry/main.go`):
    - Managing multiple serializers
-   - Comparing different formats
-   - Content type handling
+   - Using the default registry
+   - Demonstrating format-specific behaviors
 
 3. **Streaming Operations** (`examples/streaming/main.go`):
    - Streaming serialization
-   - Working with binary data
+   - Size comparison between formats
    - Complex data structures
 
 To run the examples:
@@ -194,8 +192,8 @@ The package currently supports the following serialization formats:
 Each serializer provides its content type for HTTP operations:
 
 - JSON: `application/json`
-- Gob: `application/octet-stream`
-- MessagePack: `application/msgpack`
+- Gob: `application/x-gob`
+- MessagePack: `application/x-msgpack`
 
 ## Error Handling
 
@@ -210,16 +208,34 @@ The package provides comprehensive error handling:
 
 1. **Format Selection**: Choose the appropriate format for your use case:
    - JSON for human-readable data and web APIs
-   - Gob for Go-specific applications
-   - MessagePack for efficient binary serialization
+   - Gob for Go-specific applications (remember to register types)
+   - MessagePack for efficient binary serialization and better type preservation
 
 2. **Error Handling**: Always check for errors in serialization operations
 
-3. **Type Safety**: Use strongly-typed structs when possible
+3. **Type Awareness**: Be aware of format-specific type handling:
+   - JSON converts all numbers to float64
+   - MessagePack and Gob preserve integer types
+   - Complex types may be handled differently across formats
+   - Gob requires explicit type registration for interface values:
+     ```go
+     import "encoding/gob"
+     
+     func init() {
+         // Register types that will be stored in interface{} values
+         gob.Register(time.Time{})
+         gob.Register(map[string]interface{}{})
+         gob.Register([]interface{}{})
+     }
+     ```
 
-4. **Streaming**: Use streaming operations for large data sets
+4. **Pointer for Deserialization**: Always pass a pointer to the `Deserialize` method:
+   ```go
+   var result MyStruct
+   err = serializer.Deserialize(data, &result) // Use a pointer!
+   ```
 
-5. **Registry**: Use the registry for managing multiple serializers
+5. **Streaming**: Use streaming operations for large data sets to avoid memory constraints
 
 ## Contributing
 

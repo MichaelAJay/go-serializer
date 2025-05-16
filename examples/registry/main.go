@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"time"
 
@@ -8,6 +9,11 @@ import (
 )
 
 func main() {
+	// Register types with gob to allow serialization
+	gob.Register(time.Time{})
+	gob.Register(map[string]int{})
+	gob.Register(map[string]any{})
+
 	// Create a registry
 	registry := serializer.NewRegistry()
 
@@ -45,6 +51,7 @@ func main() {
 		}
 
 		fmt.Printf("Content-Type: %s\n", ser.ContentType())
+		fmt.Printf("Serialized size: %d bytes\n", len(bytes))
 
 		// Deserialize the data
 		var result map[string]any
@@ -55,28 +62,31 @@ func main() {
 		}
 
 		// Print the result
-		fmt.Printf("Result: %+v\n", result)
+		fmt.Printf("Result contains %d keys\n", len(result))
 
-		// Test cross-format compatibility
-		if format != serializer.JSON {
-			fmt.Printf("\nTesting cross-format compatibility (json -> %s):\n", format)
-			jsonSer, ok := registry.Get(serializer.JSON)
-			if !ok {
-				fmt.Printf("JSON serializer not found\n")
-				continue
+		// Compare a few values
+		if s, ok := result["string"].(string); ok {
+			fmt.Printf("String value: %s\n", s)
+		}
+
+		// Print numeric values - note how JSON always returns float64
+		switch format {
+		case serializer.JSON:
+			if n, ok := result["int"].(float64); ok {
+				fmt.Printf("JSON numeric value (stored as float64): %v\n", n)
 			}
-			jsonBytes, err := jsonSer.Serialize(data)
-			if err != nil {
-				fmt.Printf("JSON serialization error: %v\n", err)
-				continue
+		case serializer.Binary, serializer.Msgpack:
+			if n, ok := result["int"].(int); ok {
+				fmt.Printf("Numeric value (preserved as int): %v\n", n)
 			}
-			var crossResult map[string]any
-			err = ser.Deserialize(jsonBytes, &crossResult)
-			if err != nil {
-				fmt.Printf("Cross-format deserialization error: %v\n", err)
-				continue
-			}
-			fmt.Printf("Cross-format result: %+v\n", crossResult)
 		}
 	}
+
+	// Using serializers from default registry
+	fmt.Println("\nUsing default registry:")
+	jsonSerializer, _ := serializer.DefaultRegistry.Get(serializer.JSON)
+	msgpackSerializer, _ := serializer.DefaultRegistry.Get(serializer.Msgpack)
+
+	fmt.Printf("JSON content type: %s\n", jsonSerializer.ContentType())
+	fmt.Printf("MsgPack content type: %s\n", msgpackSerializer.ContentType())
 }

@@ -15,6 +15,14 @@ type LogEntry struct {
 	Metadata  map[string]string `json:"metadata"`
 }
 
+// min returns the smaller of x or y
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
 func main() {
 	// Create some log entries
 	entries := []LogEntry{
@@ -42,29 +50,46 @@ func main() {
 	var buf bytes.Buffer
 
 	// Create a MessagePack serializer (good for binary data)
-	serializer := &serializer.MsgPackSerializer{}
+	msgpackSerializer := serializer.NewMsgpackSerializer()
 
 	// Serialize entries to stream
-	err := serializer.SerializeTo(&buf, entries)
+	err := msgpackSerializer.SerializeTo(&buf, entries)
 	if err != nil {
 		log.Fatalf("Failed to serialize to stream: %v", err)
 	}
 
-	fmt.Printf("Serialized size: %d bytes\n", buf.Len())
+	fmt.Printf("MessagePack serialized size: %d bytes\n", buf.Len())
 
 	// Deserialize from stream
 	var result []LogEntry
-	err = serializer.DeserializeFrom(&buf, &result)
+	err = msgpackSerializer.DeserializeFrom(&buf, &result)
 	if err != nil {
 		log.Fatalf("Failed to deserialize from stream: %v", err)
 	}
 
 	// Print deserialized entries
-	for _, entry := range result {
-		fmt.Printf("\nEntry:\n")
+	fmt.Printf("Deserialized %d log entries\n", len(result))
+	for i, entry := range result {
+		fmt.Printf("\nEntry %d:\n", i+1)
 		fmt.Printf("  Timestamp: %s\n", entry.Timestamp)
 		fmt.Printf("  Level: %s\n", entry.Level)
 		fmt.Printf("  Message: %s\n", entry.Message)
 		fmt.Printf("  Metadata: %v\n", entry.Metadata)
 	}
+
+	// Compare with JSON serialization
+	fmt.Println("\nComparing with JSON serialization:")
+	jsonSerializer := serializer.NewJSONSerializer()
+
+	// Reset buffer
+	buf.Reset()
+
+	// Serialize to JSON stream
+	err = jsonSerializer.SerializeTo(&buf, entries)
+	if err != nil {
+		log.Fatalf("Failed to serialize to JSON stream: %v", err)
+	}
+
+	fmt.Printf("JSON serialized size: %d bytes\n", buf.Len())
+	fmt.Printf("JSON content (first 100 chars): %s\n", string(buf.Bytes()[:min(100, buf.Len())])+"...")
 }

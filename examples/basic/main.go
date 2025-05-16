@@ -22,10 +22,10 @@ func main() {
 	}
 
 	// Create a JSON serializer
-	serializer := &serializer.JSONSerializer{}
+	jsonSerializer := serializer.NewJSONSerializer()
 
 	// Serialize the person
-	bytes, err := serializer.Serialize(person)
+	bytes, err := jsonSerializer.Serialize(person)
 	if err != nil {
 		log.Fatalf("Failed to serialize: %v", err)
 	}
@@ -34,10 +34,30 @@ func main() {
 
 	// Deserialize back to a person
 	var result Person
-	err = serializer.Deserialize(bytes, &result)
+	err = jsonSerializer.Deserialize(bytes, &result)
 	if err != nil {
 		log.Fatalf("Failed to deserialize: %v", err)
 	}
 
 	fmt.Printf("Deserialized person: %+v\n", result)
+
+	// Try other serializers
+	fmt.Println("\nTrying MessagePack serializer:")
+	msgpackSerializer := serializer.NewMsgpackSerializer()
+
+	// Serialize to MessagePack
+	msgpackBytes, err := msgpackSerializer.Serialize(person)
+	if err != nil {
+		log.Fatalf("Failed to serialize with MessagePack: %v", err)
+	}
+	fmt.Printf("MessagePack serialized size: %d bytes\n", len(msgpackBytes))
+
+	// Deserialize from MessagePack
+	var msgpackResult Person
+	err = msgpackSerializer.Deserialize(msgpackBytes, &msgpackResult)
+	if err != nil {
+		log.Fatalf("Failed to deserialize with MessagePack: %v", err)
+	}
+
+	fmt.Printf("MessagePack deserialized person: %+v\n", msgpackResult)
 }
