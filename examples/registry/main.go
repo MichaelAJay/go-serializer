@@ -44,14 +44,7 @@ func main() {
 			continue
 		}
 
-		// Get the type information
-		valueType, err := ser.GetType(bytes)
-		if err != nil {
-			fmt.Printf("GetType error: %v\n", err)
-			continue
-		}
 		fmt.Printf("Content-Type: %s\n", ser.ContentType())
-		fmt.Printf("Type: %s\n", valueType)
 
 		// Deserialize the data
 		var result map[string]any
