@@ -92,11 +92,11 @@ Each serialization format has its own specific behaviors:
    - Go-specific binary format
    - Best for Go-to-Go communication
    - Preserves Go types accurately
-   - **Requires explicit type registration** for interface{} values:
+   - **Requires explicit type registration** for any values:
      ```go
      // Register types with gob before serialization
      gob.Register(time.Time{})
-     gob.Register(map[string]interface{}{})
+     gob.Register(map[string]any{})
      ```
    - Content-Type: `application/x-gob`
 
@@ -222,10 +222,10 @@ The package provides comprehensive error handling:
      import "encoding/gob"
      
      func init() {
-         // Register types that will be stored in interface{} values
+         // Register types that will be stored in any values
          gob.Register(time.Time{})
-         gob.Register(map[string]interface{}{})
-         gob.Register([]interface{}{})
+         gob.Register(map[string]any{})
+         gob.Register([]any{})
      }
      ```
 
