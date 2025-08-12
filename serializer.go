@@ -3,6 +3,7 @@ package serializer
 import (
 	"fmt"
 	"io"
+	"reflect"
 )
 
 // Serializer interface defines the contract for serialization implementations
@@ -23,6 +24,25 @@ type Serializer interface {
 
 	// ContentType returns the MIME type for this serialization format
 	ContentType() string
+}
+
+// TypeInfo holds runtime type information for typed serialization
+type TypeInfo struct {
+	Type     reflect.Type
+	TypeName string
+}
+
+// TypedSerializer extends Serializer with type-aware operations
+// This allows the serializer to know the exact target type for deserialization
+type TypedSerializer interface {
+	Serializer
+	
+	// SerializeWithTypeInfo optimizes serialization based on type information
+	SerializeWithTypeInfo(v any, typeInfo TypeInfo) ([]byte, error)
+	
+	// DeserializeWithTypeInfo uses type information to deserialize to the exact type
+	// This is crucial for gob serialization which needs concrete type information
+	DeserializeWithTypeInfo(data []byte, typeInfo TypeInfo) (any, error)
 }
 
 // Format enum for selecting serializers
