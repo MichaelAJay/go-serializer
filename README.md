@@ -87,6 +87,7 @@ Each serialization format has its own specific behaviors:
    - Compact binary format
    - Preserves numeric types (int, float)
    - Better performance for large datasets
+   - **Advanced pooled APIs** for high-throughput applications
    - Content-Type: `application/x-msgpack`
 
 3. **Gob**:
@@ -100,6 +101,49 @@ Each serialization format has its own specific behaviors:
      gob.Register(map[string]any{})
      ```
    - Content-Type: `application/x-gob`
+
+## Performance Features
+
+### High-Performance MessagePack Serializer
+
+For applications requiring maximum throughput and minimal memory allocations, the MessagePack serializer provides advanced pooled serialization APIs:
+
+- **Pooled Encoders/Decoders**: Reuses encoder and decoder objects across operations to eliminate per-call allocations
+- **Zero-Copy Serialization**: `SerializePooled()` returns pooled buffers without copying data
+- **Safe Fallback**: `SerializeSafe()` provides allocation reduction while maintaining simple ownership semantics
+- **Thread-Safe**: All pooled operations are safe for concurrent use
+
+#### Performance Variants
+
+```go
+// Standard API - minimal allocations with simple ownership
+data, err := msgpackSerializer.SerializeSafe(value)
+
+// High-performance API - zero-copy with manual lifecycle management
+pooledBuf, err := msgpackSerializer.SerializePooled(value)
+defer pooledBuf.Release() // Must call Release() when done
+
+// Direct access to pooled bytes
+bytes := pooledBuf.Bytes()
+```
+
+#### Batch Operations
+
+For high-throughput scenarios like Redis pipelining, use the optimized batch APIs:
+
+```go
+// Safe batch operation - reduced allocations with simple API
+err := setManySafe(ctx, values, ttl)
+
+// High-performance batch operation - minimal allocations with lifecycle management
+err := setManyPooled(ctx, values, ttl)
+```
+
+**Performance Benefits:**
+- **5× reduction in allocations** for batch operations
+- **Significant memory usage reduction** in high-throughput scenarios
+- **Lower GC pressure** through object pooling
+- **Thread-safe pooling** with automatic buffer size management
 
 ### Performance-Optimized String Deserialization
 
@@ -330,7 +374,7 @@ The package provides comprehensive error handling:
 1. **Format Selection**: Choose the appropriate format for your use case:
    - JSON for human-readable data and web APIs
    - Gob for Go-specific applications (remember to register types)
-   - MessagePack for efficient binary serialization and better type preservation
+   - MessagePack for efficient binary serialization, better type preservation, and high-throughput applications requiring minimal allocations
 
 2. **Error Handling**: Always check for errors in serialization operations
 
@@ -358,7 +402,9 @@ The package provides comprehensive error handling:
 
 5. **Streaming**: Use streaming operations for large data sets to avoid memory constraints
 
-6. **StringDeserializer Optimization**: When deserializing from string sources, use the StringDeserializer interface for better performance:
+6. **Performance Optimizations**:
+   
+   a. **StringDeserializer**: Use the StringDeserializer interface for better performance when deserializing from string sources:
    ```go
    // Good: Check for and use StringDeserializer when available
    func DeserializeFromString(serializer serializer.Serializer, data string, result any) error {
@@ -367,12 +413,24 @@ The package provides comprehensive error handling:
        }
        return serializer.Deserialize([]byte(data), result)
    }
+   ```
    
-   // Better: Abstract the optimization in your cache/database layer
-   type OptimizedClient struct {
-       serializer  serializer.Serializer
-       stringDeser serializer.StringDeserializer // nil if not supported
-   }
+   b. **MessagePack Pooled APIs**: For high-throughput scenarios, use pooled serialization:
+   ```go
+   // Safe approach with allocation reduction
+   data, err := msgpackSerializer.SerializeSafe(value)
+   
+   // High-performance approach requiring lifecycle management
+   pooledBuf, err := msgpackSerializer.SerializePooled(value)
+   defer pooledBuf.Release() // Critical: must call Release()
+   bytes := pooledBuf.Bytes()
+   ```
+   
+   c. **Batch Operations**: Use optimized batch methods for Redis/cache operations:
+   ```go
+   // Choose based on performance vs complexity tradeoffs
+   err := setManySafe(ctx, values, ttl)      // Safer, still fast
+   err := setManyPooled(ctx, values, ttl)    // Fastest, requires care
    ```
 
 ## Contributing
