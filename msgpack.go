@@ -43,6 +43,15 @@ func (s *MsgPackSerializer) DeserializeFrom(r io.Reader, v any) error {
 	return msgpack.NewDecoder(r).Decode(v)
 }
 
+// DeserializeString implements StringDeserializer interface
+// Uses unsafe string-to-bytes conversion to avoid allocation
+func (s *MsgPackSerializer) DeserializeString(data string, v any) error {
+	if data == "" {
+		return errors.New("data is empty")
+	}
+	return msgpack.Unmarshal(stringToReadOnlyBytes(data), v)
+}
+
 func (s *MsgPackSerializer) ContentType() string {
 	return "application/x-msgpack"
 }

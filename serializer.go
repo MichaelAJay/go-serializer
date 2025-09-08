@@ -32,6 +32,12 @@ type TypeInfo struct {
 	TypeName string
 }
 
+// StringDeserializer provides optimized string-to-object deserialization
+// Implementations can avoid string->[]byte allocation through unsafe conversion
+type StringDeserializer interface {
+	DeserializeString(data string, v any) error
+}
+
 // TypedSerializer extends Serializer with type-aware operations
 // This allows the serializer to know the exact target type for deserialization
 type TypedSerializer interface {

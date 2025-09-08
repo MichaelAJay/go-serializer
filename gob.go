@@ -60,6 +60,17 @@ func (s *GobSerializer) DeserializeFrom(r io.Reader, v any) error {
 	return decoder.Decode(v)
 }
 
+// DeserializeString implements StringDeserializer interface
+// Uses unsafe string-to-bytes conversion to avoid allocation
+func (s *GobSerializer) DeserializeString(data string, v any) error {
+	if data == "" {
+		return errors.New("data is empty")
+	}
+	buf := bytes.NewBuffer(stringToReadOnlyBytes(data))
+	decoder := gob.NewDecoder(buf)
+	return decoder.Decode(v)
+}
+
 func (s *GobSerializer) ContentType() string {
 	return "application/x-gob"
 }

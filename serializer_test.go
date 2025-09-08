@@ -612,3 +612,196 @@ func TestVersion(t *testing.T) {
 		t.Errorf("Expected patch version %d, got %d", serializer.VersionPatch, info["patch"])
 	}
 }
+
+// TestStringDeserializer tests the StringDeserializer interface implementation
+func TestStringDeserializer(t *testing.T) {
+	for _, s := range testSerializers {
+		t.Run(s.name, func(t *testing.T) {
+			// Check if serializer implements StringDeserializer
+			stringDeser, ok := s.serializer.(serializer.StringDeserializer)
+			if !ok {
+				t.Fatalf("Serializer %s does not implement StringDeserializer", s.name)
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					// First serialize the data
+					data, err := s.serializer.Serialize(tc.value)
+					if err != nil {
+						t.Fatalf("Serialize failed: %v", err)
+					}
+
+					// Test DeserializeString vs Deserialize for identical results
+					switch s.name {
+					case "JSON":
+						// Test with any type to match JSON behavior
+						var stringResult any = tc.jsonType
+						var byteResult any = tc.jsonType
+
+						err1 := stringDeser.DeserializeString(string(data), &stringResult)
+						err2 := s.serializer.Deserialize(data, &byteResult)
+
+						if err1 != nil || err2 != nil {
+							if err1 != nil && err2 != nil {
+								// Both should fail in the same way
+								return
+							}
+							t.Fatalf("Inconsistent error behavior: DeserializeString=%v, Deserialize=%v", err1, err2)
+						}
+
+						if !compareValues(byteResult, stringResult) {
+							t.Errorf("DeserializeString result differs from Deserialize: expected %v, got %v", byteResult, stringResult)
+						}
+
+					case "Gob", "MsgPack":
+						// Use typed variables for binary formats
+						var stringResult, byteResult any
+						
+						switch tc.value.(type) {
+						case string:
+							var sr, br string
+							stringResult, byteResult = &sr, &br
+						case int:
+							var sr, br int
+							stringResult, byteResult = &sr, &br
+						case float64:
+							var sr, br float64
+							stringResult, byteResult = &sr, &br
+						case bool:
+							var sr, br bool
+							stringResult, byteResult = &sr, &br
+						case []string:
+							var sr, br []string
+							stringResult, byteResult = &sr, &br
+						case map[string]int:
+							var sr, br map[string]int
+							stringResult, byteResult = &sr, &br
+						case testStruct:
+							var sr, br testStruct
+							stringResult, byteResult = &sr, &br
+						}
+
+						err1 := stringDeser.DeserializeString(string(data), stringResult)
+						err2 := s.serializer.Deserialize(data, byteResult)
+
+						if err1 != nil || err2 != nil {
+							if err1 != nil && err2 != nil {
+								// Both should fail in the same way
+								return
+							}
+							t.Fatalf("Inconsistent error behavior: DeserializeString=%v, Deserialize=%v", err1, err2)
+						}
+
+						stringVal := deref(stringResult)
+						byteVal := deref(byteResult)
+
+						if !compareValues(byteVal, stringVal) {
+							t.Errorf("DeserializeString result differs from Deserialize: expected %v, got %v", byteVal, stringVal)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestStringDeserializerEdgeCases tests edge cases for StringDeserializer
+func TestStringDeserializerEdgeCases(t *testing.T) {
+	for _, s := range testSerializers {
+		t.Run(s.name, func(t *testing.T) {
+			stringDeser, ok := s.serializer.(serializer.StringDeserializer)
+			if !ok {
+				t.Fatalf("Serializer %s does not implement StringDeserializer", s.name)
+			}
+
+			// Test empty string handling
+			var result string
+			err := stringDeser.DeserializeString("", &result)
+			if err == nil {
+				t.Error("Expected error when deserializing empty string")
+			}
+
+			// Test nil pointer handling
+			err = stringDeser.DeserializeString("{}", nil)
+			if err == nil {
+				t.Error("Expected error when deserializing into nil pointer")
+			}
+
+			// Test non-pointer handling
+			var nonPtr string
+			err = stringDeser.DeserializeString("\"test\"", nonPtr)
+			if err == nil {
+				t.Error("Expected error when deserializing into non-pointer")
+			}
+
+			// Test invalid data handling
+			err = stringDeser.DeserializeString("invalid-data", &result)
+			if err == nil {
+				t.Error("Expected error when deserializing invalid data")
+			}
+		})
+	}
+}
+
+// TestStringDeserializerComplexStruct tests complex struct deserialization
+func TestStringDeserializerComplexStruct(t *testing.T) {
+	complexStruct := testStruct{
+		String:    "complex test",
+		Int:       99,
+		Float:     2.718,
+		Bool:      false,
+		Time:      time.Date(2024, 12, 25, 10, 30, 0, 0, time.UTC),
+		Slice:     []string{"x", "y", "z"},
+		Map:       map[string]int{"alpha": 1, "beta": 2},
+		Ptr:       func() *string { s := "pointer value"; return &s }(),
+		Interface: "simple interface value", // Use comparable value
+	}
+
+	for _, s := range testSerializers {
+		t.Run(s.name, func(t *testing.T) {
+			stringDeser, ok := s.serializer.(serializer.StringDeserializer)
+			if !ok {
+				t.Fatalf("Serializer %s does not implement StringDeserializer", s.name)
+			}
+
+			// Serialize
+			data, err := s.serializer.Serialize(complexStruct)
+			if err != nil {
+				t.Fatalf("Serialize failed: %v", err)
+			}
+
+			// Deserialize using string method
+			var stringResult testStruct
+			err = stringDeser.DeserializeString(string(data), &stringResult)
+			if err != nil {
+				t.Fatalf("DeserializeString failed: %v", err)
+			}
+
+			// Deserialize using byte method
+			var byteResult testStruct
+			err = s.serializer.Deserialize(data, &byteResult)
+			if err != nil {
+				t.Fatalf("Deserialize failed: %v", err)
+			}
+
+			// Compare results - use manual comparison since compareStructs might have issues
+			if stringResult.String != byteResult.String ||
+				stringResult.Int != byteResult.Int ||
+				stringResult.Float != byteResult.Float ||
+				stringResult.Bool != byteResult.Bool ||
+				!stringResult.Time.Equal(byteResult.Time) ||
+				!compareSlices(stringResult.Slice, byteResult.Slice) ||
+				!compareMaps(stringResult.Map, byteResult.Map) ||
+				stringResult.Interface != byteResult.Interface {
+				t.Error("StringDeserializer result differs from Deserialize result for complex struct")
+			}
+
+			// Check pointer fields separately
+			if (stringResult.Ptr == nil) != (byteResult.Ptr == nil) {
+				t.Error("Pointer fields differ in nil status")
+			} else if stringResult.Ptr != nil && byteResult.Ptr != nil && *stringResult.Ptr != *byteResult.Ptr {
+				t.Error("Pointer field values differ")
+			}
+		})
+	}
+}

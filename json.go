@@ -42,6 +42,15 @@ func (s *JSONSerializer) DeserializeFrom(r io.Reader, v any) error {
 	return json.NewDecoder(r).Decode(v)
 }
 
+// DeserializeString implements StringDeserializer interface
+// Uses unsafe string-to-bytes conversion to avoid allocation
+func (s *JSONSerializer) DeserializeString(data string, v any) error {
+	if data == "" {
+		return errors.New("data is empty")
+	}
+	return json.Unmarshal(stringToReadOnlyBytes(data), v)
+}
+
 func (s *JSONSerializer) ContentType() string {
 	return "application/json"
 }
