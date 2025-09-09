@@ -7,6 +7,10 @@ import (
 	"github.com/MichaelAJay/go-serializer"
 )
 
+const (
+	maxBufferSize = 32 * 1024
+)
+
 // benchmarkData contains test data of varying sizes for benchmarks
 var benchmarkData = []struct {
 	name string
@@ -39,19 +43,19 @@ var benchmarkData = []struct {
 	{
 		name: "LargeStruct",
 		data: testStruct{
-			String:    "benchmark test data",
-			Int:       12345,
-			Float:     3.14159,
-			Bool:      true,
-			Time:      time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Slice:     func() []string { 
+			String: "benchmark test data",
+			Int:    12345,
+			Float:  3.14159,
+			Bool:   true,
+			Time:   time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Slice: func() []string {
 				slice := make([]string, 1000)
 				for i := range slice {
 					slice[i] = "item"
 				}
 				return slice
 			}(),
-			Map:       func() map[string]int {
+			Map: func() map[string]int {
 				m := make(map[string]int)
 				for i := 0; i < 100; i++ {
 					m[string(rune('a'+i))] = i
@@ -66,7 +70,7 @@ var benchmarkData = []struct {
 
 // BenchmarkJSONDeserializeString benchmarks JSON StringDeserializer performance
 func BenchmarkJSONDeserializeString(b *testing.B) {
-	jsonSerializer := serializer.NewJSONSerializer()
+	jsonSerializer := serializer.NewJSONSerializer(maxBufferSize)
 	stringDeser := jsonSerializer.(serializer.StringDeserializer)
 
 	for _, bd := range benchmarkData {
@@ -104,7 +108,7 @@ func BenchmarkJSONDeserializeString(b *testing.B) {
 
 // BenchmarkJSONDeserializeBytes benchmarks JSON traditional byte-based deserialization
 func BenchmarkJSONDeserializeBytes(b *testing.B) {
-	jsonSerializer := serializer.NewJSONSerializer()
+	jsonSerializer := serializer.NewJSONSerializer(maxBufferSize)
 
 	for _, bd := range benchmarkData {
 		b.Run(bd.name, func(b *testing.B) {
@@ -306,12 +310,12 @@ func BenchmarkGobDeserializeBytes(b *testing.B) {
 // BenchmarkAllSerializersComparison provides side-by-side comparison
 func BenchmarkAllSerializersComparison(b *testing.B) {
 	testData := "This is a medium-sized test string for comparative benchmarking across different serialization formats."
-	
+
 	serializers := []struct {
 		name       string
 		serializer serializer.Serializer
 	}{
-		{"JSON", serializer.NewJSONSerializer()},
+		{"JSON", serializer.NewJSONSerializer(maxBufferSize)},
 		{"MsgPack", serializer.NewMsgpackSerializer()},
 		{"Gob", serializer.NewGobSerializer()},
 	}

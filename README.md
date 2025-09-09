@@ -43,7 +43,7 @@ func main() {
     registry := serializer.NewRegistry()
 
     // Register serializers
-    registry.Register(serializer.JSON, serializer.NewJSONSerializer())
+    registry.Register(serializer.JSON, serializer.NewJSONSerializer(32 * 1024))
     registry.Register(serializer.Binary, serializer.NewGobSerializer())
     registry.Register(serializer.Msgpack, serializer.NewMsgpackSerializer())
 
@@ -60,7 +60,7 @@ func main() {
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Printf("Serialized JSON: %s\n", string(bytes))
 
     // Deserialize data
@@ -78,12 +78,14 @@ func main() {
 Each serialization format has its own specific behaviors:
 
 1. **JSON**:
+
    - Human-readable text format
    - All numbers are deserialized as `float64`
    - Time values are serialized as strings
    - Content-Type: `application/json`
 
 2. **MessagePack**:
+
    - Compact binary format
    - Preserves numeric types (int, float)
    - Better performance for large datasets
@@ -140,6 +142,7 @@ err := setManyPooled(ctx, values, ttl)
 ```
 
 **Performance Benefits:**
+
 - **5× reduction in allocations** for batch operations
 - **Significant memory usage reduction** in high-throughput scenarios
 - **Lower GC pressure** through object pooling
@@ -166,12 +169,14 @@ if stringDeser, ok := jsonSerializer.(serializer.StringDeserializer); ok {
 ```
 
 **Performance Benefits:**
+
 - **Eliminates string→[]byte allocation** saving memory and reducing GC pressure
 - **50-80% reduction in memory allocations** for large string data
 - **Automatic optimization** - all built-in serializers support this interface
 - **Backward compatible** - graceful fallback to standard `Deserialize()` method
 
 **When to Use:**
+
 - Deserializing data from string sources (Redis, databases, REST APIs)
 - High-throughput applications processing large strings
 - Memory-constrained environments where allocation reduction matters
@@ -197,7 +202,7 @@ The registry provides a convenient way to manage multiple serializers:
 registry := serializer.NewRegistry()
 
 // Register serializers
-registry.Register(serializer.JSON, serializer.NewJSONSerializer())
+registry.Register(serializer.JSON, serializer.NewJSONSerializer(32 * 1024))
 registry.Register(serializer.Binary, serializer.NewGobSerializer())
 registry.Register(serializer.Msgpack, serializer.NewMsgpackSerializer())
 
@@ -213,11 +218,13 @@ newSerializer, err := registry.New(serializer.JSON)
 The package includes several examples demonstrating different use cases:
 
 1. **Basic Usage** (`examples/basic/main.go`):
+
    - Simple serialization of a struct
    - JSON and MessagePack serialization
    - Type handling differences
 
 2. **Registry Usage** (`examples/registry/main.go`):
+
    - Managing multiple serializers
    - Using the default registry
    - Demonstrating format-specific behaviors
@@ -259,42 +266,42 @@ type CacheClient struct {
 
 func NewCacheClient(s serializer.Serializer) *CacheClient {
     client := &CacheClient{serializer: s}
-    
+
     // Check if serializer supports optimized string deserialization
     if stringDeser, ok := s.(serializer.StringDeserializer); ok {
         client.stringDeser = stringDeser
     }
-    
+
     return client
 }
 
 func (c *CacheClient) Get(key string, result any) error {
     // Simulate getting string data from cache/database
     serializedData := `{"id":123,"name":"John Doe","active":true}`
-    
+
     // Use optimized string deserialization if available
     if c.stringDeser != nil {
         return c.stringDeser.DeserializeString(serializedData, result)
     }
-    
+
     // Fallback to traditional method
     return c.serializer.Deserialize([]byte(serializedData), result)
 }
 
 func main() {
     // Works with any serializer format
-    jsonClient := NewCacheClient(serializer.NewJSONSerializer())
+    jsonClient := NewCacheClient(serializer.NewJSONSerializer(32 * 1024))
     msgpackClient := NewCacheClient(serializer.NewMsgpackSerializer())
-    
+
     var user map[string]any
-    
+
     // Both will use optimized StringDeserializer automatically
     err := jsonClient.Get("user:123", &user)
     if err == nil {
         fmt.Printf("JSON result: %+v\n", user)
     }
-    
-    err = msgpackClient.Get("user:123", &user)  
+
+    err = msgpackClient.Get("user:123", &user)
     if err == nil {
         fmt.Printf("MsgPack result: %+v\n", user)
     }
@@ -323,6 +330,7 @@ patch := info["patch"] // 0
 The package defines two main interfaces:
 
 **Serializer Interface:**
+
 ```go
 type Serializer interface {
     Serialize(v any) ([]byte, error)
@@ -334,6 +342,7 @@ type Serializer interface {
 ```
 
 **StringDeserializer Interface (Performance Optimization):**
+
 ```go
 type StringDeserializer interface {
     DeserializeString(data string, v any) error
@@ -372,6 +381,7 @@ The package provides comprehensive error handling:
 ## Best Practices
 
 1. **Format Selection**: Choose the appropriate format for your use case:
+
    - JSON for human-readable data and web APIs
    - Gob for Go-specific applications (remember to register types)
    - MessagePack for efficient binary serialization, better type preservation, and high-throughput applications requiring minimal allocations
@@ -379,13 +389,15 @@ The package provides comprehensive error handling:
 2. **Error Handling**: Always check for errors in serialization operations
 
 3. **Type Awareness**: Be aware of format-specific type handling:
+
    - JSON converts all numbers to float64
    - MessagePack and Gob preserve integer types
    - Complex types may be handled differently across formats
    - Gob requires explicit type registration for interface values:
+
      ```go
      import "encoding/gob"
-     
+
      func init() {
          // Register types that will be stored in any values
          gob.Register(time.Time{})
@@ -395,6 +407,7 @@ The package provides comprehensive error handling:
      ```
 
 4. **Pointer for Deserialization**: Always pass a pointer to the `Deserialize` method:
+
    ```go
    var result MyStruct
    err = serializer.Deserialize(data, &result) // Use a pointer!
@@ -403,8 +416,9 @@ The package provides comprehensive error handling:
 5. **Streaming**: Use streaming operations for large data sets to avoid memory constraints
 
 6. **Performance Optimizations**:
-   
+
    a. **StringDeserializer**: Use the StringDeserializer interface for better performance when deserializing from string sources:
+
    ```go
    // Good: Check for and use StringDeserializer when available
    func DeserializeFromString(serializer serializer.Serializer, data string, result any) error {
@@ -414,19 +428,21 @@ The package provides comprehensive error handling:
        return serializer.Deserialize([]byte(data), result)
    }
    ```
-   
+
    b. **MessagePack Pooled APIs**: For high-throughput scenarios, use pooled serialization:
+
    ```go
    // Safe approach with allocation reduction
    data, err := msgpackSerializer.SerializeSafe(value)
-   
+
    // High-performance approach requiring lifecycle management
    pooledBuf, err := msgpackSerializer.SerializePooled(value)
    defer pooledBuf.Release() // Critical: must call Release()
    bytes := pooledBuf.Bytes()
    ```
-   
+
    c. **Batch Operations**: Use optimized batch methods for Redis/cache operations:
+
    ```go
    // Choose based on performance vs complexity tradeoffs
    err := setManySafe(ctx, values, ttl)      // Safer, still fast

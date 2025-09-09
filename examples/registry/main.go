@@ -8,6 +8,10 @@ import (
 	"github.com/MichaelAJay/go-serializer"
 )
 
+const (
+	maxBufferSize = 32 * 1024
+)
+
 func main() {
 	// Register types with gob to allow serialization
 	gob.Register(time.Time{})
@@ -18,7 +22,7 @@ func main() {
 	registry := serializer.NewRegistry()
 
 	// Register serializers
-	registry.Register(serializer.JSON, serializer.NewJSONSerializer())
+	registry.Register(serializer.JSON, serializer.NewJSONSerializer(maxBufferSize))
 	registry.Register(serializer.Binary, serializer.NewGobSerializer())
 	registry.Register(serializer.Msgpack, serializer.NewMsgpackSerializer())
 

@@ -46,33 +46,33 @@ func (m *mockStringSerializer) DeserializeString(data string, v any) error {
 // TestInterfaceDetection tests that StringDeserializer interface detection works correctly
 func TestInterfaceDetection(t *testing.T) {
 	tests := []struct {
-		name                 string
-		serializer           serializer.Serializer
+		name                  string
+		serializer            serializer.Serializer
 		implementsStringDeser bool
 	}{
 		{
-			name:                 "JSON_implements_StringDeserializer",
-			serializer:           serializer.NewJSONSerializer(),
+			name:                  "JSON_implements_StringDeserializer",
+			serializer:            serializer.NewJSONSerializer(maxBufferSize),
 			implementsStringDeser: true,
 		},
 		{
-			name:                 "MsgPack_implements_StringDeserializer",
-			serializer:           serializer.NewMsgpackSerializer(),
+			name:                  "MsgPack_implements_StringDeserializer",
+			serializer:            serializer.NewMsgpackSerializer(),
 			implementsStringDeser: true,
 		},
 		{
-			name:                 "Gob_implements_StringDeserializer",
-			serializer:           serializer.NewGobSerializer(),
+			name:                  "Gob_implements_StringDeserializer",
+			serializer:            serializer.NewGobSerializer(),
 			implementsStringDeser: true,
 		},
 		{
-			name:                 "Mock_does_not_implement_StringDeserializer",
-			serializer:           &mockSerializer{},
+			name:                  "Mock_does_not_implement_StringDeserializer",
+			serializer:            &mockSerializer{},
 			implementsStringDeser: false,
 		},
 		{
-			name:                 "MockString_implements_StringDeserializer",
-			serializer:           &mockStringSerializer{mockSerializer: &mockSerializer{}},
+			name:                  "MockString_implements_StringDeserializer",
+			serializer:            &mockStringSerializer{mockSerializer: &mockSerializer{}},
 			implementsStringDeser: true,
 		},
 	}
@@ -80,7 +80,7 @@ func TestInterfaceDetection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stringDeser, ok := tt.serializer.(serializer.StringDeserializer)
-			
+
 			if tt.implementsStringDeser {
 				if !ok {
 					t.Errorf("Expected serializer to implement StringDeserializer, but it doesn't")
@@ -103,7 +103,7 @@ func TestInterfaceDetection(t *testing.T) {
 // TestTypeAssertionSafety tests that type assertion is safe and doesn't panic
 func TestTypeAssertionSafety(t *testing.T) {
 	serializers := []serializer.Serializer{
-		serializer.NewJSONSerializer(),
+		serializer.NewJSONSerializer(maxBufferSize),
 		serializer.NewMsgpackSerializer(),
 		serializer.NewGobSerializer(),
 		&mockSerializer{},
@@ -139,7 +139,7 @@ func TestFallbackBehavior(t *testing.T) {
 
 	// Test with serializers that implement StringDeserializer
 	realSerializers := []serializer.Serializer{
-		serializer.NewJSONSerializer(),
+		serializer.NewJSONSerializer(maxBufferSize),
 		serializer.NewMsgpackSerializer(),
 		serializer.NewGobSerializer(),
 	}
@@ -205,7 +205,7 @@ func TestRegistryWithStringDeserializer(t *testing.T) {
 	registry := serializer.NewRegistry()
 
 	// Register all serializers
-	registry.Register("json", serializer.NewJSONSerializer())
+	registry.Register("json", serializer.NewJSONSerializer(maxBufferSize))
 	registry.Register("msgpack", serializer.NewMsgpackSerializer())
 	registry.Register("gob", serializer.NewGobSerializer())
 	registry.Register("mock", &mockSerializer{})
@@ -222,7 +222,7 @@ func TestRegistryWithStringDeserializer(t *testing.T) {
 
 			// Test interface detection
 			_, hasStringDeser := s.(serializer.StringDeserializer)
-			
+
 			switch format {
 			case "json", "msgpack", "gob", "mockstring":
 				if !hasStringDeser {
@@ -252,7 +252,7 @@ func TestRegistryWithStringDeserializer(t *testing.T) {
 // TestConcurrentInterfaceDetection tests interface detection under concurrent access
 func TestConcurrentInterfaceDetection(t *testing.T) {
 	serializers := []serializer.Serializer{
-		serializer.NewJSONSerializer(),
+		serializer.NewJSONSerializer(maxBufferSize),
 		serializer.NewMsgpackSerializer(),
 		serializer.NewGobSerializer(),
 	}

@@ -6,6 +6,10 @@ import (
 	"reflect"
 )
 
+const (
+	maxBufferSize = 32 * 1024
+)
+
 // Serializer interface defines the contract for serialization implementations
 type Serializer interface {
 	// Serialize converts a value to bytes
@@ -42,10 +46,10 @@ type StringDeserializer interface {
 // This allows the serializer to know the exact target type for deserialization
 type TypedSerializer interface {
 	Serializer
-	
+
 	// SerializeWithTypeInfo optimizes serialization based on type information
 	SerializeWithTypeInfo(v any, typeInfo TypeInfo) ([]byte, error)
-	
+
 	// DeserializeWithTypeInfo uses type information to deserialize to the exact type
 	// This is crucial for gob serialization which needs concrete type information
 	DeserializeWithTypeInfo(data []byte, typeInfo TypeInfo) (any, error)
@@ -94,7 +98,7 @@ func (r *Registry) New(format Format) (Serializer, error) {
 
 // RegisterDefaultSerializers registers all available serializers
 func RegisterDefaultSerializers() {
-	DefaultRegistry.Register(JSON, NewJSONSerializer())
+	DefaultRegistry.Register(JSON, NewJSONSerializer(maxBufferSize))
 	DefaultRegistry.Register(Binary, NewGobSerializer())
 	DefaultRegistry.Register(Msgpack, NewMsgpackSerializer())
 }

@@ -123,7 +123,7 @@ var testSerializers = []struct {
 	name       string
 	serializer serializer.Serializer
 }{
-	{"JSON", serializer.NewJSONSerializer()},
+	{"JSON", serializer.NewJSONSerializer(maxBufferSize)},
 	{"Gob", serializer.NewGobSerializer()},
 	{"MsgPack", serializer.NewMsgpackSerializer()},
 }
@@ -656,7 +656,7 @@ func TestStringDeserializer(t *testing.T) {
 					case "Gob", "MsgPack":
 						// Use typed variables for binary formats
 						var stringResult, byteResult any
-						
+
 						switch tc.value.(type) {
 						case string:
 							var sr, br string

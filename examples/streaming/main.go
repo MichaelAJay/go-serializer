@@ -8,6 +8,10 @@ import (
 	"github.com/MichaelAJay/go-serializer"
 )
 
+const (
+	maxBufferSize = 32 * 1024
+)
+
 type LogEntry struct {
 	Timestamp string            `json:"timestamp"`
 	Level     string            `json:"level"`
@@ -79,7 +83,7 @@ func main() {
 
 	// Compare with JSON serialization
 	fmt.Println("\nComparing with JSON serialization:")
-	jsonSerializer := serializer.NewJSONSerializer()
+	jsonSerializer := serializer.NewJSONSerializer(maxBufferSize)
 
 	// Reset buffer
 	buf.Reset()

@@ -98,24 +98,21 @@ func (s *MsgPackSerializer) SerializeSafe(v any) ([]byte, error) {
 
 	// Acquire pooled encoder
 	pe := getPooledEncoder()
-	
+	defer putPooledEncoder(pe)
+
 	// Reset buffer and bind encoder to it
 	pe.buf.Reset()
 	pe.enc.Reset(pe.buf)
-	
+
 	// Encode the value
 	if err := pe.enc.Encode(v); err != nil {
-		putPooledEncoder(pe)
 		return nil, err
 	}
-	
+
 	// Copy to owned slice
 	out := make([]byte, pe.buf.Len())
 	copy(out, pe.buf.Bytes())
-	
-	// Return encoder to pool (with capacity management)
-	putPooledEncoder(pe)
-	
+
 	return out, nil
 }
 
@@ -131,11 +128,11 @@ func (s *MsgPackSerializer) Deserialize(data []byte, v any) error {
 	if v == nil {
 		return errors.New("output parameter is nil")
 	}
-	
+
 	// Use pooled decoder to reduce allocations
 	pd := getPooledDecoder(data)
 	defer putPooledDecoder(pd)
-	
+
 	return pd.dec.Decode(v)
 }
 
@@ -213,18 +210,18 @@ func (s *MsgPackSerializer) SerializePooled(v any) (*PooledBuf, error) {
 
 	// Acquire pooled encoder
 	pe := getPooledEncoder()
-	
+
 	// Reset buffer and bind encoder to it
 	pe.buf.Reset()
 	pe.enc.Reset(pe.buf)
-	
+
 	// Encode the value
 	if err := pe.enc.Encode(v); err != nil {
 		// On error, return encoder to pool immediately
 		putPooledEncoder(pe)
 		return nil, err
 	}
-	
+
 	// Return PooledBuf with ownership of the encoder
 	// Do NOT put the encoder back in the pool - ownership is transferred to caller
 	return &PooledBuf{pe: pe}, nil
@@ -240,17 +237,17 @@ func (s *MsgPackSerializer) DeserializeFromPooled(pb *PooledBuf, v any) error {
 	if v == nil {
 		return errors.New("output parameter is nil")
 	}
-	
+
 	// Get bytes from the pooled buffer
 	data := pb.Bytes()
 	if data == nil {
 		return errors.New("PooledBuf contains no data")
 	}
-	
+
 	// Use pooled decoder to decode the data
 	pd := getPooledDecoder(data)
 	defer putPooledDecoder(pd)
-	
+
 	return pd.dec.Decode(v)
 }
 
@@ -262,19 +259,19 @@ func CopyAndRelease(pb *PooledBuf) []byte {
 	if pb == nil {
 		return nil
 	}
-	
+
 	// Copy the bytes before releasing
 	bytes := pb.Bytes()
 	if bytes == nil {
 		pb.Release() // Still release even if bytes is nil
 		return nil
 	}
-	
+
 	result := make([]byte, len(bytes))
 	copy(result, bytes)
-	
+
 	// Release the pooled buffer
 	pb.Release()
-	
+
 	return result
 }

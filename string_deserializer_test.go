@@ -13,7 +13,7 @@ func TestStringDeserializer(t *testing.T) {
 	original := testStruct{Name: "test", Value: 42}
 
 	serializers := []Serializer{
-		NewJSONSerializer(),
+		NewJSONSerializer(maxBufferSize),
 		NewMsgpackSerializer(),
 		NewGobSerializer(),
 	}
@@ -60,7 +60,7 @@ func TestStringDeserializer(t *testing.T) {
 
 func TestStringDeserializerEdgeCases(t *testing.T) {
 	serializers := []Serializer{
-		NewJSONSerializer(),
+		NewJSONSerializer(maxBufferSize),
 		NewMsgpackSerializer(),
 		NewGobSerializer(),
 	}

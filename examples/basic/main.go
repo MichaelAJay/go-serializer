@@ -7,6 +7,10 @@ import (
 	"github.com/MichaelAJay/go-serializer"
 )
 
+const (
+	maxBufferSize = 32 * 1024
+)
+
 type Person struct {
 	Name    string   `json:"name"`
 	Age     int      `json:"age"`
@@ -22,7 +26,7 @@ func main() {
 	}
 
 	// Create a JSON serializer
-	jsonSerializer := serializer.NewJSONSerializer()
+	jsonSerializer := serializer.NewJSONSerializer(maxBufferSize)
 
 	// Serialize the person
 	bytes, err := jsonSerializer.Serialize(person)
